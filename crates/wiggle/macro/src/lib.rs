@@ -163,7 +163,7 @@ pub fn async_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
     let _ = parse_macro_input!(attr as syn::parse::Nothing);
     let item = proc_macro2::TokenStream::from(item);
     TokenStream::from(quote! {
-        #[wiggle::async_trait_crate::async_trait(?Send)]
+        #[wiggle::async_trait_crate::async_trait]
         #item
     })
 }
