@@ -31,7 +31,7 @@ mod module_trait_fn_and_arg_test {
                  )
              )",
     });
-    impl<'a> self_::Self_ for WasiCtx<'a> {
+    impl self_::Self_ for WasiCtx {
         #[allow(unused_variables)]
         fn fn_(&self, use_: u32, virtual_: u32) {
             unimplemented!();

@@ -9,7 +9,7 @@ wiggle::from_witx!({
 
 impl_errno!(types::Errno);
 
-impl<'a> ints::Ints for WasiCtx<'a> {
+impl ints::Ints for WasiCtx {
     fn cookie_cutter(&self, init_cookie: types::Cookie) -> Result<types::Bool, types::Errno> {
         let res = if init_cookie == types::COOKIE_START {
             types::Bool::True

@@ -9,7 +9,7 @@ wiggle::from_witx!({
 
 impl_errno!(types::Errno);
 
-impl<'a> flags::Flags for WasiCtx<'a> {
+impl flags::Flags for WasiCtx {
     fn configure_car(
         &self,
         old_config: types::CarConfig,

@@ -30,7 +30,7 @@ fn mult_zero_nan(a: f32, b: u32) -> f32 {
     }
 }
 
-impl<'a> variant_example::VariantExample for WasiCtx<'a> {
+impl variant_example::VariantExample for WasiCtx {
     fn get_tag(&self, u: &types::Reason) -> Result<types::Excuse, types::Errno> {
         println!("GET TAG: {:?}", u);
         match u {

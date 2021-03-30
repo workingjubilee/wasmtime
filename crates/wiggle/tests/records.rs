@@ -8,7 +8,7 @@ wiggle::from_witx!({
 
 impl_errno!(types::Errno);
 
-impl<'a> records::Records for WasiCtx<'a> {
+impl records::Records for WasiCtx {
     fn sum_of_pair(&self, an_pair: &types::PairInts) -> Result<i64, types::Errno> {
         Ok(an_pair.first as i64 + an_pair.second as i64)
     }

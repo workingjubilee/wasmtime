@@ -8,7 +8,7 @@ wiggle::from_witx!({
 
 impl_errno!(types::Errno);
 
-impl<'a> pointers::Pointers for WasiCtx<'a> {
+impl pointers::Pointers for WasiCtx {
     fn pointers_and_enums<'b>(
         &self,
         input1: types::Excuse,

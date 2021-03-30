@@ -8,7 +8,7 @@ wiggle::from_witx!({
 
 impl_errno!(types::Errno);
 
-impl<'a> strings::Strings for WasiCtx<'a> {
+impl strings::Strings for WasiCtx {
     fn hello_string(&self, a_string: &GuestPtr<str>) -> Result<u32, types::Errno> {
         let s = a_string.as_str().expect("should be valid string");
         println!("a_string='{}'", &*s);

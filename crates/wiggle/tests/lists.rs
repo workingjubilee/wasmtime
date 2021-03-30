@@ -8,7 +8,7 @@ wiggle::from_witx!({
 
 impl_errno!(types::Errno);
 
-impl<'a> lists::Lists for WasiCtx<'a> {
+impl lists::Lists for WasiCtx {
     fn reduce_excuses(
         &self,
         excuses: &types::ConstExcuseArray,
@@ -208,7 +208,7 @@ proptest! {
     }
 }
 
-impl<'a> array_traversal::ArrayTraversal for WasiCtx<'a> {
+impl array_traversal::ArrayTraversal for WasiCtx {
     fn sum_of_element(
         &self,
         elements: &GuestPtr<[types::PairInts]>,

@@ -10,7 +10,7 @@ wiggle::from_witx!({
 
 impl_errno!(types::Errno);
 
-impl<'a> handle_examples::HandleExamples for WasiCtx<'a> {
+impl handle_examples::HandleExamples for WasiCtx {
     fn fd_create(&self) -> Result<types::Fd, types::Errno> {
         Ok(types::Fd::from(FD_VAL))
     }

@@ -325,18 +325,16 @@ use wiggle::GuestError;
 
 // In lucet, our Ctx struct needs a lifetime, so we're using one
 // on the test as well.
-pub struct WasiCtx<'a> {
+pub struct WasiCtx {
     pub guest_errors: RefCell<Vec<GuestError>>,
     pub log: RefCell<Vec<String>>,
-    lifetime: marker::PhantomData<&'a ()>,
 }
 
-impl<'a> WasiCtx<'a> {
+impl WasiCtx {
     pub fn new() -> Self {
         Self {
             guest_errors: RefCell::new(vec![]),
             log: RefCell::new(vec![]),
-            lifetime: marker::PhantomData,
         }
     }
 }
