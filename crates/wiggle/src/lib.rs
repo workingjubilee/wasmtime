@@ -16,6 +16,7 @@ pub use witx;
 mod error;
 mod guest_type;
 mod region;
+pub mod state;
 
 pub extern crate tracing;
 
