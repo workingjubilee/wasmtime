@@ -257,14 +257,12 @@ fn generate_func(
         _ => unimplemented!(),
     };
 
-    let async_ = if is_async { quote!(async) } else { quote!() };
-    let await_ = if is_async { quote!(.await) } else { quote!() };
-
     let runtime = names.runtime_mod();
     let fn_ident = format_ident!("{}_{}", module_ident, name_ident);
 
-    fns.push(quote! {
-        #async_ fn #fn_ident(caller: &wasmtime::Caller<'_>, ctx: &mut #ctx_type #(, #arg_decls)*) -> Result<#ret_ty, wasmtime::Trap> {
+    if is_async {
+        fns.push(quote! {
+        async fn #fn_ident(caller: &wasmtime::Caller<'_>, ctx: &mut #ctx_type #(, #arg_decls)*) -> Result<#ret_ty, wasmtime::Trap> {
             unsafe {
                 let mem = match caller.get_export("memory") {
                     Some(wasmtime::Extern::Memory(m)) => m,
@@ -273,7 +271,12 @@ fn generate_func(
                     }
                 };
                 let mem = #runtime::WasmtimeGuestMemory::new(mem);
-                match #target_module::#name_ident(ctx, &mem #(, #arg_names)*) #await_ {
+
+                thread_local!(static PTR: std::cell::Cell<usize> = std::cell::Cell::new(0));
+                let host_state: #runtime::state::HostState<#ctx_type> = #runtime::state::HostState::new(&PTR);
+
+                let fut = #target_module::#name_ident(&host_state, &mem #(, #arg_names)*);
+                match #runtime::state::HostFuture::new(&ctx, &PTR, fut).await {
                     Ok(r) => Ok(r.into()),
                     Err(wasmtime_wiggle::Trap::String(err)) => Err(wasmtime::Trap::new(err)),
                     Err(wasmtime_wiggle::Trap::I32Exit(err)) => Err(wasmtime::Trap::i32_exit(err)),
@@ -281,6 +284,26 @@ fn generate_func(
             }
         }
     });
+    } else {
+        fns.push(quote! {
+        fn #fn_ident(caller: &wasmtime::Caller<'_>, ctx: &mut #ctx_type #(, #arg_decls)*) -> Result<#ret_ty, wasmtime::Trap> {
+            unsafe {
+                let mem = match caller.get_export("memory") {
+                    Some(wasmtime::Extern::Memory(m)) => m,
+                    _ => {
+                        return Err(wasmtime::Trap::new("missing required memory export"));
+                    }
+                };
+                let mem = #runtime::WasmtimeGuestMemory::new(mem);
+                match #target_module::#name_ident(ctx, &mem #(, #arg_names)*) {
+                    Ok(r) => Ok(r.into()),
+                    Err(wasmtime_wiggle::Trap::String(err)) => Err(wasmtime::Trap::new(err)),
+                    Err(wasmtime_wiggle::Trap::I32Exit(err)) => Err(wasmtime::Trap::i32_exit(err)),
+                }
+            }
+        }
+    });
+    }
 
     if is_async {
         let wrapper = format_ident!("wrap{}_async", params.len());
