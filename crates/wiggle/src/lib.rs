@@ -80,7 +80,7 @@ pub mod async_trait_crate {
 /// the contents of a WebAssembly memory, all `GuestSlice`s and `GuestStr`s
 /// for the memory must be dropped, at which point
 /// `GuestMemory::has_outstanding_borrows()` will return `false`.
-pub unsafe trait GuestMemory {
+pub unsafe trait GuestMemory: Send + Sync {
     /// Returns the base allocation of this guest memory, located in host
     /// memory.
     ///
@@ -276,33 +276,6 @@ unsafe impl<T: ?Sized + GuestMemory> GuestMemory for Box<T> {
     }
 }
 
-unsafe impl<T: ?Sized + GuestMemory> GuestMemory for Rc<T> {
-    fn base(&self) -> (*mut u8, u32) {
-        T::base(self)
-    }
-    fn has_outstanding_borrows(&self) -> bool {
-        T::has_outstanding_borrows(self)
-    }
-    fn is_mut_borrowed(&self, r: Region) -> bool {
-        T::is_mut_borrowed(self, r)
-    }
-    fn is_shared_borrowed(&self, r: Region) -> bool {
-        T::is_shared_borrowed(self, r)
-    }
-    fn mut_borrow(&self, r: Region) -> Result<BorrowHandle, GuestError> {
-        T::mut_borrow(self, r)
-    }
-    fn shared_borrow(&self, r: Region) -> Result<BorrowHandle, GuestError> {
-        T::shared_borrow(self, r)
-    }
-    fn mut_unborrow(&self, h: BorrowHandle) {
-        T::mut_unborrow(self, h)
-    }
-    fn shared_unborrow(&self, h: BorrowHandle) {
-        T::shared_unborrow(self, h)
-    }
-}
-
 unsafe impl<T: ?Sized + GuestMemory> GuestMemory for Arc<T> {
     fn base(&self) -> (*mut u8, u32) {
         T::base(self)
@@ -383,7 +356,9 @@ unsafe impl<T: ?Sized + GuestMemory> GuestMemory for Arc<T> {
 pub struct GuestPtr<'a, T: ?Sized + Pointee> {
     mem: &'a (dyn GuestMemory + 'a),
     pointer: T::Pointer,
-    _marker: marker::PhantomData<&'a Cell<T>>,
+    // XXX changing this marker from a Cell to a Mutex is a dangerous lie to convince rustc that
+    // GuestPtr is Sync
+    _marker: marker::PhantomData<&'a std::sync::Mutex<T>>,
 }
 
 impl<'a, T: ?Sized + Pointee> GuestPtr<'a, T> {

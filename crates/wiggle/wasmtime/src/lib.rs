@@ -9,6 +9,9 @@ pub struct WasmtimeGuestMemory {
     mem: wasmtime::Memory,
     bc: BorrowChecker,
 }
+/// XXX FIXME The following impls are dangerous lies, just to see what other type errors we have to slog through:
+unsafe impl Send for WasmtimeGuestMemory {}
+unsafe impl Sync for WasmtimeGuestMemory {}
 
 impl WasmtimeGuestMemory {
     pub fn new(mem: wasmtime::Memory) -> Self {
