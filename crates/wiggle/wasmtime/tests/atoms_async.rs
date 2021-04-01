@@ -63,7 +63,11 @@ impl atoms::Atoms for Ctx {
         host_state: &HostState<Self>,
         an_int: u32,
     ) -> Result<types::AliasToFloat, types::Errno> {
-        host_state.with(|s| s.increment());
+        host_state.with(|s| {
+            s.increment();
+            // Keep following line commented until self pointer bug is fixed, otherwise this will panic:
+            //s.log(format!("double_int_return_float: {}", an_int));
+        });
         Ok((an_int as f32) * 2.0)
     }
 }
