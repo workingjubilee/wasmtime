@@ -36,6 +36,10 @@ impl Ctx {
         }
     }
     fn increment(&self) {
+        println!(
+            "Ctx pointer: {:#x}",
+            self as *const Self as *const () as usize
+        );
         self.calls.set(self.calls.get() + 1)
     }
     fn log(&self, msg: impl AsRef<str>) {
@@ -148,7 +152,8 @@ fn test_async_host_func() {
     run_async_func(&linker, input);
 
     let ctx = ctx.borrow();
-    assert_eq!(ctx.calls.get(), 1);
+    ctx.increment();
+    assert_eq!(ctx.calls.get(), 2);
     let log = ctx.log.borrow();
     assert_eq!(
         log.deref(),
@@ -203,7 +208,9 @@ fn test_async_config_host_func() {
         .get::<Rc<RefCell<Ctx>>>()
         .expect("store has Rc<RefCell<Ctx>>")
         .borrow();
-    assert_eq!(ctx.calls.get(), 1);
+
+    ctx.increment();
+    assert_eq!(ctx.calls.get(), 2);
     let log = ctx.log.borrow();
     assert_eq!(
         log.deref(),
