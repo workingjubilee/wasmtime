@@ -1,8 +1,10 @@
 use std::cell::RefCell;
 use std::future::Future;
+use std::ops::Deref;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+use wiggle::state::HostState;
 
 wasmtime_wiggle::from_witx!({
     witx: ["$CARGO_MANIFEST_DIR/tests/atoms.witx"],
@@ -21,7 +23,20 @@ wasmtime_wiggle::wasmtime_integration!({
     }
 });
 
-pub struct Ctx;
+pub struct Ctx {
+    log: RefCell<Vec<String>>,
+}
+
+impl Ctx {
+    fn new() -> Self {
+        Self {
+            log: RefCell::new(Vec::new()),
+        }
+    }
+    fn log(&self, msg: impl AsRef<str>) {
+        self.log.borrow_mut().push(msg.as_ref().to_string());
+    }
+}
 impl wiggle::GuestErrorType for types::Errno {
     fn success() -> Self {
         types::Errno::Ok
@@ -31,25 +46,26 @@ impl wiggle::GuestErrorType for types::Errno {
 #[wasmtime_wiggle::async_trait]
 impl atoms::Atoms for Ctx {
     fn int_float_args(&self, an_int: u32, an_float: f32) -> Result<(), types::Errno> {
-        println!("INT FLOAT ARGS: {} {}", an_int, an_float);
+        self.log(format!("int_float_args: {} {}", an_int, an_float));
         Ok(())
     }
     async fn double_int_return_float(
-        &self,
+        host_state: &HostState<Self>,
         an_int: u32,
     ) -> Result<types::AliasToFloat, types::Errno> {
+        host_state.with(|s| s.log(format!("double_int_return_float: {}", an_int)));
         Ok((an_int as f32) * 2.0)
     }
 }
 
-fn run_sync_func(linker: &wasmtime::Linker) {
+fn run_sync_func(linker: &wasmtime::Linker, input_int: i32, input_float: f32) {
     let shim_mod = shim_module(linker.store());
     let shim_inst = run(linker.instantiate_async(&shim_mod)).unwrap();
 
     let results = run(shim_inst
         .get_func("int_float_args_shim")
         .unwrap()
-        .call_async(&[0i32.into(), 123.45f32.into()]))
+        .call_async(&[input_int.into(), input_float.into()]))
     .unwrap();
 
     assert_eq!(results.len(), 1, "one return value");
@@ -60,11 +76,10 @@ fn run_sync_func(linker: &wasmtime::Linker) {
     );
 }
 
-fn run_async_func(linker: &wasmtime::Linker) {
+fn run_async_func(linker: &wasmtime::Linker, input: i32) {
     let shim_mod = shim_module(linker.store());
     let shim_inst = run(linker.instantiate_async(&shim_mod)).unwrap();
 
-    let input: i32 = 123;
     let result_location: i32 = 0;
 
     let results = run(shim_inst
@@ -93,26 +108,44 @@ fn run_async_func(linker: &wasmtime::Linker) {
 fn test_sync_host_func() {
     let store = async_store();
 
-    let ctx = Rc::new(RefCell::new(Ctx));
+    let ctx = Rc::new(RefCell::new(Ctx::new()));
     let atoms = Atoms::new(&store, ctx.clone());
 
     let mut linker = wasmtime::Linker::new(&store);
     atoms.add_to_linker(&mut linker).unwrap();
 
-    run_sync_func(&linker);
+    let input_int = 1;
+    let input_float = 23.456;
+
+    run_sync_func(&linker, input_int, input_float);
+
+    let ctx = ctx.borrow();
+    let log = ctx.log.borrow();
+    assert_eq!(
+        log.deref(),
+        &[format!("int_float_args: {} {}", input_int, input_float)]
+    );
 }
 
 #[test]
 fn test_async_host_func() {
     let store = async_store();
 
-    let ctx = Rc::new(RefCell::new(Ctx));
+    let ctx = Rc::new(RefCell::new(Ctx::new()));
     let atoms = Atoms::new(&store, ctx.clone());
 
     let mut linker = wasmtime::Linker::new(&store);
     atoms.add_to_linker(&mut linker).unwrap();
 
-    run_async_func(&linker);
+    let input = 1112;
+    run_async_func(&linker, input);
+
+    let ctx = ctx.borrow();
+    let log = ctx.log.borrow();
+    assert_eq!(
+        log.deref(),
+        &[format!("double_int_return_float: {}", input)]
+    );
 }
 
 #[test]
@@ -124,10 +157,22 @@ fn test_sync_config_host_func() {
     let engine = wasmtime::Engine::new(&config).unwrap();
     let store = wasmtime::Store::new(&engine);
 
-    assert!(Atoms::set_context(&store, Ctx).is_ok());
+    assert!(Atoms::set_context(&store, Ctx::new()).is_ok());
 
     let linker = wasmtime::Linker::new(&store);
-    run_sync_func(&linker);
+    let input_int = 7;
+    let input_float = 8.9;
+    run_sync_func(&linker, input_int, input_float);
+
+    let ctx = store
+        .get::<Rc<RefCell<Ctx>>>()
+        .expect("store has Rc<RefCell<Ctx>>")
+        .borrow();
+    let log = ctx.log.borrow();
+    assert_eq!(
+        log.deref(),
+        &[format!("int_float_args: {} {}", input_int, input_float)]
+    );
 }
 
 #[test]
@@ -139,10 +184,21 @@ fn test_async_config_host_func() {
     let engine = wasmtime::Engine::new(&config).unwrap();
     let store = wasmtime::Store::new(&engine);
 
-    assert!(Atoms::set_context(&store, Ctx).is_ok());
+    assert!(Atoms::set_context(&store, Ctx::new()).is_ok());
 
     let linker = wasmtime::Linker::new(&store);
-    run_async_func(&linker);
+    let input = 1312; // Say their names
+    run_async_func(&linker, input);
+
+    let ctx = store
+        .get::<Rc<RefCell<Ctx>>>()
+        .expect("store has Rc<RefCell<Ctx>>")
+        .borrow();
+    let log = ctx.log.borrow();
+    assert_eq!(
+        log.deref(),
+        &[format!("double_int_return_float: {}", input)]
+    );
 }
 
 fn run<F: Future>(future: F) -> F::Output {
