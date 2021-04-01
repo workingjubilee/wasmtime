@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::ops::Deref;
 use std::pin::Pin;
@@ -25,13 +25,18 @@ wasmtime_wiggle::wasmtime_integration!({
 
 pub struct Ctx {
     log: RefCell<Vec<String>>,
+    calls: Cell<usize>,
 }
 
 impl Ctx {
     fn new() -> Self {
         Self {
             log: RefCell::new(Vec::new()),
+            calls: Cell::new(0),
         }
+    }
+    fn increment(&self) {
+        self.calls.set(self.calls.get() + 1)
     }
     fn log(&self, msg: impl AsRef<str>) {
         self.log.borrow_mut().push(msg.as_ref().to_string());
@@ -46,6 +51,7 @@ impl wiggle::GuestErrorType for types::Errno {
 #[wasmtime_wiggle::async_trait]
 impl atoms::Atoms for Ctx {
     fn int_float_args(&self, an_int: u32, an_float: f32) -> Result<(), types::Errno> {
+        self.increment();
         self.log(format!("int_float_args: {} {}", an_int, an_float));
         Ok(())
     }
@@ -53,7 +59,7 @@ impl atoms::Atoms for Ctx {
         host_state: &HostState<Self>,
         an_int: u32,
     ) -> Result<types::AliasToFloat, types::Errno> {
-        host_state.with(|s| s.log(format!("double_int_return_float: {}", an_int)));
+        host_state.with(|s| s.increment());
         Ok((an_int as f32) * 2.0)
     }
 }
@@ -120,6 +126,7 @@ fn test_sync_host_func() {
     run_sync_func(&linker, input_int, input_float);
 
     let ctx = ctx.borrow();
+    assert_eq!(ctx.calls.get(), 1);
     let log = ctx.log.borrow();
     assert_eq!(
         log.deref(),
@@ -141,6 +148,7 @@ fn test_async_host_func() {
     run_async_func(&linker, input);
 
     let ctx = ctx.borrow();
+    assert_eq!(ctx.calls.get(), 1);
     let log = ctx.log.borrow();
     assert_eq!(
         log.deref(),
@@ -168,6 +176,7 @@ fn test_sync_config_host_func() {
         .get::<Rc<RefCell<Ctx>>>()
         .expect("store has Rc<RefCell<Ctx>>")
         .borrow();
+    assert_eq!(ctx.calls.get(), 1);
     let log = ctx.log.borrow();
     assert_eq!(
         log.deref(),
@@ -194,6 +203,7 @@ fn test_async_config_host_func() {
         .get::<Rc<RefCell<Ctx>>>()
         .expect("store has Rc<RefCell<Ctx>>")
         .borrow();
+    assert_eq!(ctx.calls.get(), 1);
     let log = ctx.log.borrow();
     assert_eq!(
         log.deref(),
