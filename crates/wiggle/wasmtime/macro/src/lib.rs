@@ -276,7 +276,7 @@ fn generate_func(
                 let host_state: #runtime::state::HostState<#ctx_type> = #runtime::state::HostState::new(&PTR);
 
                 let fut = #target_module::#name_ident(&host_state, &mem #(, #arg_names)*);
-                match #runtime::state::HostFuture::new(&ctx, &PTR, fut).await {
+                match #runtime::state::HostFuture::<'_, #ctx_type, _>::new(&*ctx, &PTR, fut).await {
                     Ok(r) => Ok(r.into()),
                     Err(wasmtime_wiggle::Trap::String(err)) => Err(wasmtime::Trap::new(err)),
                     Err(wasmtime_wiggle::Trap::I32Exit(err)) => Err(wasmtime::Trap::i32_exit(err)),
