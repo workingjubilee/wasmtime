@@ -75,16 +75,16 @@ pub fn define_module_trait(names: &Names, m: &Module, settings: &CodegenSettings
             _ => unimplemented!(),
         };
 
-        let asyncness = if settings.is_async(&m, &f) {
-            quote!(async)
+        let funcname = if is_anonymous {
+            quote!(#funcname)
         } else {
-            quote!()
+            quote!(#funcname<#lifetime>)
         };
 
-        if is_anonymous {
-            quote!(#asyncness fn #funcname(&self, #(#args),*) -> #result; )
+        if settings.is_async(&m, &f) {
+            quote!(async fn #funcname(host_self: &#rt::state::HostState<Self>, #(#args),*) -> #result; )
         } else {
-            quote!(#asyncness fn #funcname<#lifetime>(&self, #(#args),*) -> #result;)
+            quote!(fn #funcname(&self, #(#args),*) -> #result; )
         }
     });
 

@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::thread::LocalKey;
 
-pub struct HostState<T> {
+pub struct HostState<T: ?Sized> {
     key: &'static LocalKey<Cell<usize>>,
     _marker: marker::PhantomData<fn() -> T>,
 }

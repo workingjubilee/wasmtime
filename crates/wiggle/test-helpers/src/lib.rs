@@ -1,6 +1,5 @@
 use proptest::prelude::*;
 use std::cell::UnsafeCell;
-use std::marker;
 use wiggle::{BorrowHandle, GuestMemory, Region};
 
 use wiggle_borrow::BorrowChecker;
@@ -336,6 +335,9 @@ impl WasiCtx {
             guest_errors: RefCell::new(vec![]),
             log: RefCell::new(vec![]),
         }
+    }
+    pub fn log(&self, msg: impl AsRef<str>) {
+        self.log.borrow_mut().push(msg.as_ref().to_string())
     }
 }
 

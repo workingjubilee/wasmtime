@@ -53,32 +53,51 @@ pub fn define_func(
         },
     );
 
-    let asyncness = if settings.is_async(&module, &func) {
-        quote!(async)
-    } else {
-        quote!()
-    };
     let mod_name = &module.name.as_str();
     let func_name = &func.name.as_str();
-    quote! {
-        #[allow(unreachable_code)] // deals with warnings in noreturn functions
-        pub #asyncness fn #ident(
-            ctx: &(impl #(#required_impls)+*),
-            memory: &dyn #rt::GuestMemory,
-            #(#abi_params),*
-        ) -> Result<#abi_ret, #rt::Trap> {
-            use std::convert::TryFrom as _;
+    if settings.is_async(&module, &func) {
+        quote! {
+            #[allow(unreachable_code)] // deals with warnings in noreturn functions
+            pub async fn #ident(
+                ctx: &#rt::state::HostState<(impl #(#required_impls)+*)>,
+                memory: &dyn #rt::GuestMemory,
+                #(#abi_params),*
+            ) -> Result<#abi_ret, #rt::Trap> {
+                use std::convert::TryFrom as _;
 
-            // This span is present at all levels (ERROR and below)
-            let _span = #rt::tracing::span!(
-                #rt::tracing::Level::ERROR,
-                "wiggle abi",
-                module = #mod_name,
-                function = #func_name
-            );
-            let _enter = _span.enter();
+                // This span is present at all levels (ERROR and below)
+                let _span = #rt::tracing::span!(
+                    #rt::tracing::Level::ERROR,
+                    "wiggle abi",
+                    module = #mod_name,
+                    function = #func_name
+                );
+                let _enter = _span.enter();
 
-            #body
+                #body
+            }
+        }
+    } else {
+        quote! {
+            #[allow(unreachable_code)] // deals with warnings in noreturn functions
+            pub fn #ident(
+                ctx: &(impl #(#required_impls)+*),
+                memory: &dyn #rt::GuestMemory,
+                #(#abi_params),*
+            ) -> Result<#abi_ret, #rt::Trap> {
+                use std::convert::TryFrom as _;
+
+                // This span is present at all levels (ERROR and below)
+                let _span = #rt::tracing::span!(
+                    #rt::tracing::Level::ERROR,
+                    "wiggle abi",
+                    module = #mod_name,
+                    function = #func_name
+                );
+                let _enter = _span.enter();
+
+                #body
+            }
         }
     }
 }

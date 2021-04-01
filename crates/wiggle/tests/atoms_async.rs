@@ -1,7 +1,10 @@
 use proptest::prelude::*;
+use std::cell::Cell;
 use std::future::Future;
+use std::ops::Deref;
 use std::pin::Pin;
 use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+use wiggle::state::{HostFuture, HostState};
 use wiggle::GuestMemory;
 use wiggle_test::{impl_errno, HostMemory, MemArea, WasiCtx};
 
@@ -16,14 +19,19 @@ impl_errno!(types::Errno);
 
 #[wiggle::async_trait]
 impl atoms::Atoms for WasiCtx {
-    async fn int_float_args(&self, an_int: u32, an_float: f32) -> Result<(), types::Errno> {
-        println!("INT FLOAT ARGS: {} {}", an_int, an_float);
+    async fn int_float_args(
+        host_state: &HostState<Self>,
+        an_int: u32,
+        an_float: f32,
+    ) -> Result<(), types::Errno> {
+        host_state.with(|s| s.log(format!("int_float_args: {} {}", an_int, an_float)));
         Ok(())
     }
     async fn double_int_return_float(
-        &self,
+        host_state: &HostState<Self>,
         an_int: u32,
     ) -> Result<types::AliasToFloat, types::Errno> {
+        host_state.with(|s| s.log(format!("double_int_return_float: {}", an_int)));
         Ok((an_int as f32) * 2.0)
     }
 }
@@ -41,14 +49,18 @@ impl IntFloatExercise {
         let ctx = WasiCtx::new();
         let host_memory = HostMemory::new();
 
-        let e = run(atoms::int_float_args(
-            &ctx,
-            &host_memory,
-            self.an_int as i32,
-            self.an_float,
-        ));
+        thread_local!(static PTR: Cell<usize> = Cell::new(0));
+        let host_state: HostState<WasiCtx> = unsafe { HostState::new(&PTR) };
+
+        let fut =
+            atoms::int_float_args(&host_state, &host_memory, self.an_int as i32, self.an_float);
+        let e = run(unsafe { HostFuture::new(&ctx, &PTR, fut) });
 
         assert_eq!(e, Ok(types::Errno::Ok as i32), "int_float_args error");
+        assert_eq!(
+            ctx.log.borrow().deref(),
+            &[format!("int_float_args: {} {}", self.an_int, self.an_float)]
+        );
     }
 
     pub fn strat() -> BoxedStrategy<Self> {
@@ -75,12 +87,17 @@ impl DoubleIntExercise {
         let ctx = WasiCtx::new();
         let host_memory = HostMemory::new();
 
-        let e = run(atoms::double_int_return_float(
-            &ctx,
+        thread_local!(static PTR: Cell<usize> = Cell::new(0));
+        let host_state: HostState<WasiCtx> = unsafe { HostState::new(&PTR) };
+
+        let fut = atoms::double_int_return_float(
+            &host_state,
             &host_memory,
             self.input as i32,
             self.return_loc.ptr as i32,
-        ));
+        );
+
+        let e = run(unsafe { HostFuture::new(&ctx, &PTR, fut) });
 
         let return_val = host_memory
             .ptr::<types::AliasToFloat>(self.return_loc.ptr)
@@ -88,6 +105,11 @@ impl DoubleIntExercise {
             .expect("failed to read return");
         assert_eq!(e, Ok(types::Errno::Ok as i32), "errno");
         assert_eq!(return_val, (self.input as f32) * 2.0, "return val");
+
+        assert_eq!(
+            ctx.log.borrow().deref(),
+            &[format!("double_int_return_float: {}", self.input)]
+        );
     }
 
     pub fn strat() -> BoxedStrategy<Self> {
