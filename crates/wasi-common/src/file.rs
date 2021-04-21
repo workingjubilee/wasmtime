@@ -36,6 +36,13 @@ pub trait WasiFile {
     async fn seek(&self, pos: std::io::SeekFrom) -> Result<u64, Error>; // file op that generates a new stream from a file will supercede this
     async fn peek(&self, buf: &mut [u8]) -> Result<u64, Error>; // read op
     async fn num_ready_bytes(&self) -> Result<u64, Error>; // read op
+
+    /// Future that becomes ready when the file is readable. Files that do not support
+    /// creating such a future should return Err(Badf).
+    async fn readable(&mut self) -> Result<(), Error>;
+    /// Future that becomes ready when the file is writable. Files that do not support
+    /// creating such a future should return Err(Badf).
+    async fn writable(&mut self) -> Result<(), Error>;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
